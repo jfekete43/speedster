@@ -4,8 +4,8 @@
 export const TICK_RATE = 20;
 export const TICK_MS = 1000 / TICK_RATE;
 
-export const GRAVITY = 2600; // px/s^2
-export const JUMP_VELOCITY = -980; // px/s (negative = upward)
+export const GRAVITY = 2600; // px/s^2, pulls a jumping player's height back toward 0
+export const JUMP_VELOCITY = 980; // px/s, initial upward velocity when a jump starts
 export const BASE_SPEED = 260; // px/s, constant auto-run speed
 
 export const STUMBLE_SPEED_MULT = 0.45;
