@@ -5,38 +5,53 @@ function hurdle(id: string, x: number): Obstacle {
 }
 
 function barrage(id: string, x: number): Obstacle {
-  // Represents a volley of thrown obstacles - wider and taller, needs a fuller jump.
+  // A denser jump obstacle - wider and taller, needs a fuller jump.
   return { id, x, width: 70, clearance: 130, kind: 'barrage' };
 }
 
-function powerup(id: string, x: number): PowerUp {
+function thrown(id: string, x: number): Obstacle {
+  // Flies in at head height - jumping doesn't clear it, only ducking does.
+  return { id, x, width: 55, clearance: 0, kind: 'thrown' };
+}
+
+function speedPowerup(id: string, x: number): PowerUp {
   return { id, x, kind: 'speed' };
+}
+
+function shieldPowerup(id: string, x: number): PowerUp {
+  return { id, x, kind: 'shield' };
 }
 
 const obstacles: Obstacle[] = [
   hurdle('obs-1', 550),
   barrage('obs-2', 900),
-  hurdle('obs-3', 1250),
-  hurdle('obs-4', 1600),
-  barrage('obs-5', 1950),
+  thrown('obs-3', 1150),
+  hurdle('obs-4', 1400),
+  hurdle('obs-5', 1650),
+  thrown('obs-6', 1900),
+  barrage('obs-7', 2150),
   // clear zone around checkpoint 1 (2600)
-  hurdle('obs-6', 2950),
-  barrage('obs-7', 3300),
-  hurdle('obs-8', 3650),
-  hurdle('obs-9', 4000),
-  barrage('obs-10', 4350),
+  thrown('obs-8', 2950),
+  hurdle('obs-9', 3200),
+  barrage('obs-10', 3450),
+  thrown('obs-11', 3700),
+  hurdle('obs-12', 3950),
+  hurdle('obs-13', 4200),
+  barrage('obs-14', 4450),
   // clear zone around checkpoint 2 (4700)
-  hurdle('obs-11', 5000),
-  barrage('obs-12', 5350),
-  hurdle('obs-13', 5700),
+  thrown('obs-15', 5000),
+  hurdle('obs-16', 5250),
+  thrown('obs-17', 5500),
+  barrage('obs-18', 5750),
 ];
 
 const powerups: PowerUp[] = [
-  powerup('pow-1', 750),
-  powerup('pow-2', 1800),
-  powerup('pow-3', 3150),
-  powerup('pow-4', 4150),
-  powerup('pow-5', 5500),
+  speedPowerup('pow-1', 750),
+  shieldPowerup('pow-2', 1300),
+  speedPowerup('pow-3', 2400),
+  speedPowerup('pow-4', 3350),
+  shieldPowerup('pow-5', 4150),
+  speedPowerup('pow-6', 5150),
 ];
 
 const checkpoints: Checkpoint[] = [

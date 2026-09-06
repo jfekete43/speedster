@@ -13,14 +13,14 @@ export interface Obstacle {
   id: string;
   x: number;
   width: number;
-  clearance: number; // player must be above this height (y) to clear it
-  kind: 'hurdle' | 'barrage';
+  clearance: number; // jump-type only: player must be above this height (y) to clear it
+  kind: 'hurdle' | 'barrage' | 'thrown'; // hurdle/barrage: jump over. thrown: duck under, jumping doesn't help.
 }
 
 export interface PowerUp {
   id: string;
   x: number;
-  kind: 'speed';
+  kind: 'speed' | 'shield';
 }
 
 export interface Checkpoint {
@@ -61,9 +61,11 @@ export interface PlayerSnapshot {
   x: number;
   y: number;
   grounded: boolean;
+  ducking: boolean;
   alive: boolean;
   finished: boolean;
   boosted: boolean;
+  shielded: boolean;
   stumbling: boolean;
 }
 

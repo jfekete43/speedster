@@ -22,7 +22,17 @@ export function bindHud() {
         const li = document.createElement('li');
         li.classList.toggle('mine', row.id === app.myId);
         li.classList.toggle('dead', !row.alive);
-        const tag = row.finished ? '🏁' : !row.alive ? '💀' : row.boosted ? '⚡' : row.stumbling ? '💫' : '';
+        const tag = row.finished
+          ? '🏁'
+          : !row.alive
+            ? '💀'
+            : row.shielded
+              ? '🛡️'
+              : row.boosted
+                ? '⚡'
+                : row.stumbling
+                  ? '💫'
+                  : '';
         li.innerHTML = `<span class="dot" style="background:${meta?.cosmetics.color ?? '#888'}"></span><span class="pname">${escapeHtml(meta?.name ?? '???')}</span><span class="tag">${tag}</span>`;
         leaderboard.appendChild(li);
       }

@@ -19,9 +19,12 @@ deferred, so future work has a clear map instead of guessing scope.
   between server and (future) client prediction.
 - Lobby with name/color/hat customization, ready-up, host-started race, and
   a bot-filler for solo testing.
-- One track: hurdles + "barrage" obstacles requiring timed jumps, one
-  speed-boost power-up type, two elimination checkpoints that funnel the
-  field down to a final 3 survivors, then a finish line.
+- One track: hurdles + "barrage" ground obstacles requiring timed jumps,
+  plus "thrown" obstacles that fly at head height and require ducking
+  instead (jumping doesn't clear them) - two genuinely different dodges to
+  react to. Two power-ups: a speed boost and a shield (blocks the next
+  obstacle hit). Two elimination checkpoints that funnel the field down to
+  a final 3 survivors, then a finish line.
 - Results screen with standings, and one working unlock (finish 1st → Crown
   hat), persisted client-side via `localStorage`.
 
@@ -34,12 +37,12 @@ Roughly in the order it'd make sense to tackle:
    is fine locally but will feel laggy on real network latency. Next step:
    predict the local player's jump using the same shared `stepPhysics`, and
    reconcile against server snapshots.
-2. **More obstacle & power-up variety.** Today there's one power-up (speed
-   boost) and two obstacle shapes (hurdle, barrage). Natural next additions:
-   a shield/invincibility power-up, a magnet, obstacles that actually
-   telegraph and get thrown at players in real time (rather than fixed
-   track positions), moving/timed obstacles, and multiple lanes to dodge
-   sideways instead of only jumping.
+2. **More obstacle & power-up variety.** There are now two power-ups (speed
+   boost, shield) and three obstacle behaviors (jump-over hurdle/barrage,
+   duck-under thrown). Natural next additions: a magnet power-up, obstacles
+   that actually telegraph and get thrown at players in real time (rather
+   than fixed track positions), moving/timed obstacles, and multiple lanes
+   to dodge sideways instead of only jump/duck.
 3. **Real matchmaking.** Right now everyone lands in a single shared public
    room. Needs: multiple concurrent rooms, room codes / private lobbies,
    spectating a race already in progress instead of waiting, and

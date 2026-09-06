@@ -14,6 +14,8 @@ export const STUMBLE_DURATION_MS = 700;
 export const BOOST_SPEED_MULT = 1.6;
 export const BOOST_DURATION_MS = 2200;
 
+export const SHIELD_DURATION_MS = 6000; // blocks the next obstacle hit(s) within this window
+
 export const PICKUP_RADIUS = 45; // px
 
 export const PLAYER_WIDTH = 36;

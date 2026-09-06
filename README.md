@@ -65,9 +65,12 @@ docs/
    Ready up; the host starts the race once everyone (2+ players, bots count)
    is ready.
 2. **Countdown** → **Racing** — everyone auto-runs forward at a constant
-   speed. Press **Space** (or tap) to jump. Hurdles and "thrown" obstacle
-   barrages need a well-timed jump or you stumble (temporary speed penalty).
-   A speed-boost power-up is up for grabs, first come first served.
+   speed. Press **Space** (or tap) to jump over ground hurdles, and hold
+   **Down/S** to duck under obstacles thrown at head height — jumping
+   doesn't clear those, only ducking does. Miss either and you stumble
+   (temporary speed penalty), unless you're holding a shield. Two
+   power-ups are up for grabs along the way (speed boost, shield), first
+   come first served.
 3. **Checkpoints** — when the leader reaches a checkpoint gate, stragglers
    get a grace window to catch up, then the bottom half of the field is cut.
    The last checkpoint cuts down to the final 3 survivors.

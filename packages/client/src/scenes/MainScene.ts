@@ -4,10 +4,14 @@ import { app } from '../App';
 
 const GROUND_SCREEN_Y = 520;
 
+const DUCK_SCALE_Y = 0.55;
+
 interface PlayerVisual {
   container: Phaser.GameObjects.Container;
   body: Phaser.GameObjects.Rectangle;
   hat: Phaser.GameObjects.Rectangle;
+  shieldAura: Phaser.GameObjects.Ellipse;
+  hasHat: boolean;
   displayX: number;
   displayY: number;
   lane: number;
@@ -20,6 +24,7 @@ export class MainScene extends Phaser.Scene {
   private laneAssignment = new Map<string, number>();
   private nextLane = 0;
   private builtForRaceInstance = -1;
+  private lastDuckSent: boolean | null = null;
 
   constructor() {
     super('main');
@@ -33,12 +38,23 @@ export class MainScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-UP', () => this.tryJump());
     this.input.on('pointerdown', () => this.tryJump());
 
+    this.input.keyboard?.on('keydown-DOWN', () => this.setDuck(true));
+    this.input.keyboard?.on('keyup-DOWN', () => this.setDuck(false));
+    this.input.keyboard?.on('keydown-S', () => this.setDuck(true));
+    this.input.keyboard?.on('keyup-S', () => this.setDuck(false));
+
     app.subscribe(() => this.syncWorld());
     this.syncWorld();
   }
 
   private tryJump() {
     if (app.phase === 'racing') app.jump();
+  }
+
+  private setDuck(ducking: boolean) {
+    if (app.phase !== 'racing' || this.lastDuckSent === ducking) return;
+    this.lastDuckSent = ducking;
+    app.setDuck(ducking);
   }
 
   private syncWorld() {
@@ -57,6 +73,7 @@ export class MainScene extends Phaser.Scene {
     this.laneAssignment.clear();
     this.nextLane = 0;
     this.builtForRaceInstance = app.raceInstanceId;
+    this.lastDuckSent = null;
     this.cameras.main.scrollX = 0;
 
     const groundWidth = track.length + 800;
@@ -64,6 +81,13 @@ export class MainScene extends Phaser.Scene {
     this.worldLayer.add(ground);
 
     for (const obstacle of track.obstacles) {
+      if (obstacle.kind === 'thrown') {
+        // Floats at head height - communicates "duck under this", not "jump over this".
+        const rect = this.add.rectangle(obstacle.x, GROUND_SCREEN_Y - 105, obstacle.width, 46, 0x9f7aea, 0.85);
+        rect.setStrokeStyle(2, 0x000000, 0.3);
+        this.worldLayer.add(rect);
+        continue;
+      }
       const color = obstacle.kind === 'barrage' ? 0xf56565 : 0xecc94b;
       const height = obstacle.clearance + 10;
       const rect = this.add.rectangle(obstacle.x, GROUND_SCREEN_Y - height / 2, obstacle.width, height, color, 0.85);
@@ -72,7 +96,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     for (const powerup of track.powerups) {
-      const orb = this.add.circle(powerup.x, GROUND_SCREEN_Y - 70, 14, 0x68d391, 1);
+      const color = powerup.kind === 'shield' ? 0x63b3ed : 0x68d391;
+      const orb = this.add.circle(powerup.x, GROUND_SCREEN_Y - 70, 14, color, 1);
       orb.setStrokeStyle(3, 0xffffff, 0.6);
       this.worldLayer.add(orb);
       this.powerupSprites.set(powerup.id, orb);
@@ -102,12 +127,16 @@ export class MainScene extends Phaser.Scene {
     const meta = app.roster.get(id);
     const color = Phaser.Display.Color.HexStringToColor(meta?.cosmetics.color ?? '#a0aec0').color;
 
+    const shieldAura = this.add.ellipse(0, 0, PLAYER_WIDTH + 22, PLAYER_HEIGHT + 22, 0x63b3ed, 0.25);
+    shieldAura.setStrokeStyle(2, 0x63b3ed, 0.9);
+    shieldAura.setVisible(false);
+
     const body = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, color);
     body.setStrokeStyle(id === app.myId ? 3 : 2, id === app.myId ? 0xffffff : 0x000000, id === app.myId ? 0.9 : 0.4);
 
-    const hasHat = meta?.cosmetics.hat && meta.cosmetics.hat !== 'none';
+    const hasHat = !!(meta?.cosmetics.hat && meta.cosmetics.hat !== 'none');
     const hat = this.add.rectangle(0, -PLAYER_HEIGHT / 2 - 8, PLAYER_WIDTH * 0.7, 14, 0x1a202c);
-    hat.setVisible(!!hasHat);
+    hat.setVisible(hasHat);
 
     const label = this.add
       .text(0, -PLAYER_HEIGHT / 2 - 26, meta?.name ?? '???', { fontSize: '12px', color: '#e2e8f0' })
@@ -116,10 +145,10 @@ export class MainScene extends Phaser.Scene {
     const lane = this.laneAssignment.get(id) ?? this.nextLane++;
     this.laneAssignment.set(id, lane);
 
-    const container = this.add.container(0, 0, [body, hat, label]);
+    const container = this.add.container(0, 0, [shieldAura, body, hat, label]);
     this.worldLayer.add(container);
 
-    visual = { container, body, hat, displayX: 0, displayY: GROUND_SCREEN_Y, lane };
+    visual = { container, body, hat, shieldAura, hasHat, displayX: 0, displayY: GROUND_SCREEN_Y, lane };
     this.playerVisuals.set(id, visual);
     return visual;
   }
@@ -151,6 +180,12 @@ export class MainScene extends Phaser.Scene {
       visual.container.setPosition(visual.displayX, visual.displayY);
       visual.container.setAlpha(p.alive ? 1 : 0.25);
       visual.body.setFillStyle(this.tintFor(p));
+
+      const ducking = p.ducking && p.grounded;
+      visual.body.setScale(1, ducking ? DUCK_SCALE_Y : 1);
+      visual.body.setY(ducking ? (PLAYER_HEIGHT * (1 - DUCK_SCALE_Y)) / 2 : 0);
+      visual.hat.setVisible(visual.hasHat && !ducking);
+      visual.shieldAura.setVisible(p.shielded);
 
       if (p.id === app.myId) {
         localX = visual.displayX;

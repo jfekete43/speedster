@@ -16,6 +16,7 @@ export const SOCKET_EVENTS = {
   ADD_BOTS: 'add_bots',
   START_RACE: 'start_race',
   JUMP: 'jump_input',
+  DUCK: 'duck_input',
 
   LOBBY_STATE: 'lobby_state',
   COUNTDOWN: 'countdown',
@@ -44,6 +45,9 @@ export interface AddBotsPayload {
 export interface JumpInputPayload {
   seq: number;
 }
+export interface DuckInputPayload {
+  ducking: boolean;
+}
 
 export interface CountdownPayload {
   startsAt: number;
@@ -71,6 +75,7 @@ export interface ClientToServerEvents {
   add_bots: (payload: AddBotsPayload) => void;
   start_race: () => void;
   jump_input: (payload: JumpInputPayload) => void;
+  duck_input: (payload: DuckInputPayload) => void;
 }
 
 export interface ServerToClientEvents {
