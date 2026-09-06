@@ -1,0 +1,297 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #0b1016;
+  color: #e2e8f0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#game-root {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 16, 22, 0.72);
+  z-index: 10;
+}
+
+.panel {
+  background: #161f2b;
+  border: 1px solid #2d3748;
+  border-radius: 12px;
+  padding: 28px 32px;
+  width: min(420px, 90vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.panel h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.tagline {
+  margin: 0 0 20px;
+  color: #a0aec0;
+  font-size: 13px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #cbd5e0;
+}
+
+.field input {
+  background: #0f1620;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  border: 2px solid #2d3748;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.swatch:hover:not(:disabled) {
+  transform: scale(1.08);
+}
+
+.swatch:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.swatch.selected {
+  border-color: #f6e05e;
+}
+
+.hat-swatch {
+  width: auto;
+  height: auto;
+  padding: 8px 12px;
+  background: #0f1620;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+button {
+  background: #2b6cb0;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  padding: 10px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  background: #2c5282;
+}
+
+button:disabled {
+  background: #2d3748;
+  color: #718096;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.player-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.player-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f1620;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pname {
+  flex: 1;
+}
+
+.pstatus {
+  color: #68d391;
+  font-size: 12px;
+}
+
+.hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.countdown-number {
+  font-size: 120px;
+  font-weight: 800;
+  color: #f6e05e;
+  text-shadow: 0 0 30px rgba(246, 224, 94, 0.6);
+}
+
+.hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.leaderboard {
+  list-style: decimal;
+  margin: 0;
+  padding: 10px 10px 10px 26px;
+  background: rgba(15, 22, 32, 0.78);
+  border-radius: 8px;
+  font-size: 12px;
+  min-width: 180px;
+}
+
+.leaderboard li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.leaderboard li.mine .pname {
+  color: #f6e05e;
+  font-weight: 700;
+}
+
+.leaderboard li.dead {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toast {
+  background: rgba(45, 55, 72, 0.9);
+  border-left: 3px solid #f6e05e;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  animation: fade-in 0.15s ease;
+}
+
+.controls-hint {
+  color: #718096;
+  font-size: 11px;
+  margin: 0;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.standings {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.standings li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #0f1620;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.standings li.mine {
+  border: 1px solid #f6e05e;
+}
+
+.standings .place {
+  width: 32px;
+  font-weight: 700;
+}
+
+.standings .detail {
+  margin-left: auto;
+  color: #a0aec0;
+  font-size: 12px;
+}

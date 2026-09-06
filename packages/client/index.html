@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Speedster</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="game-root"></div>
+
+      <div id="lobby-overlay" class="overlay">
+        <div class="panel">
+          <h1>🏁 Speedster</h1>
+          <p class="tagline">Multiplayer side-scrolling elimination speedrun</p>
+
+          <label class="field">
+            Name
+            <input id="name-input" maxlength="16" placeholder="Runner" />
+          </label>
+
+          <div class="field">
+            <span>Color</span>
+            <div id="color-swatches" class="swatches"></div>
+          </div>
+
+          <div class="field">
+            <span>Hat</span>
+            <div id="hat-options" class="swatches"></div>
+          </div>
+
+          <div class="row">
+            <button id="ready-btn">Ready Up</button>
+            <button id="add-bots-btn">+ Add Bot</button>
+            <button id="start-btn" hidden>Start Race</button>
+          </div>
+
+          <ul id="player-list" class="player-list"></ul>
+          <p id="lobby-hint" class="hint"></p>
+        </div>
+      </div>
+
+      <div id="countdown-overlay" class="overlay" hidden>
+        <div class="countdown-number">3</div>
+      </div>
+
+      <div id="hud" class="hud" hidden>
+        <ol id="leaderboard" class="leaderboard"></ol>
+        <div id="toasts" class="toasts"></div>
+        <p class="controls-hint">Space / Tap to jump</p>
+      </div>
+
+      <div id="results-overlay" class="overlay" hidden>
+        <div class="panel">
+          <h1>Results</h1>
+          <ol id="standings-list" class="standings"></ol>
+          <p class="hint">Returning to lobby shortly…</p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
