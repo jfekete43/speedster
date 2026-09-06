@@ -2,6 +2,14 @@
   box-sizing: border-box;
 }
 
+/* Author rules like `.overlay { display: flex }` below outrank the browser's
+   built-in [hidden] styling regardless of specificity (author beats
+   user-agent in the cascade), so toggling the `hidden` property from JS
+   would otherwise silently do nothing. This makes hidden actually hide. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
