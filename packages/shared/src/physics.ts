@@ -32,7 +32,12 @@ export function stepPhysics(state: PhysicsState, input: InputState, dtMs: number
     grounded = false;
   }
 
-  vy += GRAVITY * dt;
+  // y is height above ground (0 = grounded, positive = up), so gravity must
+  // pull vy DOWN (toward/through negative) every tick, including while
+  // standing still - that's what makes the y<=0 landing clamp below ever
+  // trigger. Getting this sign backwards makes every player (jumping or
+  // not) accelerate upward off the top of the screen forever.
+  vy -= GRAVITY * dt;
   y += vy * dt;
   if (y <= 0) {
     y = 0;
