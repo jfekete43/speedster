@@ -2,6 +2,9 @@
   "name": "speedster",
   "private": true,
   "version": "0.1.0",
+  "engines": {
+    "node": ">=18"
+  },
   "workspaces": [
     "packages/*"
   ],

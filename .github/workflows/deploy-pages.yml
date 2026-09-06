@@ -1,0 +1,54 @@
+name: Deploy client to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/client/**'
+      - 'packages/shared/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Build client
+        run: npm run build -w @speedster/client
+        env:
+          # URL of the Socket.io game server (see render.yaml). Update this
+          # if the Render service ends up with a different assigned name.
+          VITE_SERVER_URL: https://speedster-server.onrender.com
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/client/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
