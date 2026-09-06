@@ -177,6 +177,10 @@ class App {
   jump() {
     this.socket?.emit('jump_input', { seq: 0 });
   }
+
+  setDuck(ducking: boolean) {
+    this.socket?.emit('duck_input', { ducking });
+  }
 }
 
 export const app = new App();

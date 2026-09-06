@@ -10,6 +10,7 @@ import {
   MIN_PLAYERS_TO_START,
   PICKUP_RADIUS,
   RESULTS_DISPLAY_MS,
+  SHIELD_DURATION_MS,
   STUMBLE_DURATION_MS,
   TICK_MS,
   checkObstacleHit,
@@ -28,7 +29,7 @@ import type {
   StandingEntry,
   TrackDefinition,
 } from '@speedster/shared';
-import { computeBotJump, randomBotSkill } from './bots.js';
+import { computeBotAction, randomBotSkill } from './bots.js';
 
 type IOServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type IOSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -46,6 +47,7 @@ interface ServerPlayer extends PhysicsState {
   eliminatedAtCheckpoint: number | null;
   hitObstacles: Set<string>;
   pendingJump: boolean;
+  ducking: boolean;
   botSkill: number;
   socket: IOSocket | null;
 }
@@ -109,6 +111,7 @@ export class Room {
       eliminatedAtCheckpoint: null,
       hitObstacles: new Set(),
       pendingJump: false,
+      ducking: false,
       botSkill: 1,
       socket,
     };
@@ -124,6 +127,7 @@ export class Room {
     socket.on('add_bots', ({ count }) => this.addBots(count));
     socket.on('start_race', () => this.tryStartRace(player.id));
     socket.on('jump_input', () => this.queueJump(player.id));
+    socket.on('duck_input', ({ ducking }) => this.setDucking(player.id, ducking));
 
     this.broadcastLobbyState();
   }
@@ -198,6 +202,7 @@ export class Room {
         eliminatedAtCheckpoint: null,
         hitObstacles: new Set(),
         pendingJump: false,
+        ducking: false,
         botSkill: randomBotSkill(),
         socket: null,
       };
@@ -210,6 +215,12 @@ export class Room {
     const player = this.players.get(id);
     if (!player || this.phase !== 'racing') return;
     player.pendingJump = true;
+  }
+
+  private setDucking(id: string, ducking: boolean) {
+    const player = this.players.get(id);
+    if (!player || player.isBot || this.phase !== 'racing') return;
+    player.ducking = ducking;
   }
 
   private tryStartRace(byId: string) {
@@ -244,6 +255,7 @@ export class Room {
       player.eliminatedAtCheckpoint = null;
       player.hitObstacles = new Set();
       player.pendingJump = false;
+      player.ducking = false;
     }
 
     this.io.to(this.id).emit('race_start', { track: this.track, startTime: this.raceStartTime });
@@ -256,8 +268,15 @@ export class Room {
     for (const player of this.players.values()) {
       if (!player.alive || player.finished) continue;
 
-      const jump = player.isBot ? computeBotJump(player, this.track, now) : player.pendingJump;
-      if (!player.isBot) player.pendingJump = false;
+      let jump: boolean;
+      if (player.isBot) {
+        const action = computeBotAction(player, this.track, now);
+        jump = action.jump;
+        player.ducking = action.duck;
+      } else {
+        jump = player.pendingJump;
+        player.pendingJump = false;
+      }
 
       const input: InputState = { jump };
       const next = stepPhysics(player, input, TICK_MS, now);
@@ -265,9 +284,13 @@ export class Room {
 
       for (const obstacle of this.track.obstacles) {
         if (player.hitObstacles.has(obstacle.id)) continue;
-        if (checkObstacleHit(player.x, player.y, obstacle)) {
+        if (checkObstacleHit(player.x, player.y, player.ducking, obstacle)) {
           player.hitObstacles.add(obstacle.id);
-          player.stumbleUntil = now + STUMBLE_DURATION_MS;
+          if (now < player.shieldUntil) {
+            player.shieldUntil = now; // shield absorbs this hit and is consumed
+          } else {
+            player.stumbleUntil = now + STUMBLE_DURATION_MS;
+          }
         }
       }
 
@@ -275,7 +298,11 @@ export class Room {
         if (this.takenPowerups.has(powerup.id)) continue;
         if (Math.abs(player.x - powerup.x) < PICKUP_RADIUS) {
           this.takenPowerups.add(powerup.id);
-          player.boostUntil = now + BOOST_DURATION_MS;
+          if (powerup.kind === 'speed') {
+            player.boostUntil = now + BOOST_DURATION_MS;
+          } else {
+            player.shieldUntil = now + SHIELD_DURATION_MS;
+          }
           this.io.to(this.id).emit('powerup_taken', { powerupId: powerup.id, playerId: player.id });
         }
       }
@@ -297,9 +324,11 @@ export class Room {
         x: p.x,
         y: p.y,
         grounded: p.grounded,
+        ducking: p.ducking,
         alive: p.alive,
         finished: p.finished,
         boosted: now < p.boostUntil,
+        shielded: now < p.shieldUntil,
         stumbling: now < p.stumbleUntil,
       })),
     };
@@ -401,6 +430,7 @@ export class Room {
       player.finishPlace = null;
       player.eliminatedAtCheckpoint = null;
       player.hitObstacles = new Set();
+      player.ducking = false;
     }
     this.broadcastLobbyState();
   }

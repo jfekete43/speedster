@@ -11,10 +11,11 @@ export interface PhysicsState {
   grounded: boolean;
   stumbleUntil: number; // race-clock ms until which a stumble speed penalty applies
   boostUntil: number; // race-clock ms until which a speed boost applies
+  shieldUntil: number; // race-clock ms until which the next obstacle hit is blocked
 }
 
 export function createInitialPhysicsState(x = 0): PhysicsState {
-  return { x, y: 0, vy: 0, grounded: true, stumbleUntil: 0, boostUntil: 0 };
+  return { x, y: 0, vy: 0, grounded: true, stumbleUntil: 0, boostUntil: 0, shieldUntil: 0 };
 }
 
 /**
@@ -44,15 +45,31 @@ export function stepPhysics(state: PhysicsState, input: InputState, dtMs: number
   if (nowMs < state.stumbleUntil) speed *= STUMBLE_SPEED_MULT;
   x += speed * dt;
 
-  return { x, y, vy, grounded, stumbleUntil: state.stumbleUntil, boostUntil: state.boostUntil };
+  return {
+    x,
+    y,
+    vy,
+    grounded,
+    stumbleUntil: state.stumbleUntil,
+    boostUntil: state.boostUntil,
+    shieldUntil: state.shieldUntil,
+  };
 }
 
+/**
+ * Hurdle/barrage obstacles sit on the ground - clear them by jumping above
+ * `clearance`. Thrown obstacles fly at head height - jumping doesn't help,
+ * only ducking does.
+ */
 export function checkObstacleHit(
   playerX: number,
   playerY: number,
-  obstacle: { x: number; width: number; clearance: number }
+  ducking: boolean,
+  obstacle: { x: number; width: number; clearance: number; kind: 'hurdle' | 'barrage' | 'thrown' }
 ): boolean {
   const halfSpan = obstacle.width / 2 + PLAYER_WIDTH / 2;
   const within = playerX > obstacle.x - halfSpan && playerX < obstacle.x + halfSpan;
-  return within && playerY < obstacle.clearance;
+  if (!within) return false;
+  if (obstacle.kind === 'thrown') return !ducking;
+  return playerY < obstacle.clearance;
 }
