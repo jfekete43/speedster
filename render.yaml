@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: speedster-server
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start --workspace=@speedster/server
+    healthCheckPath: /health
+    envVars:
+      # GitHub Pages project-site origin for jfekete43/speedster - update if
+      # the repo is renamed or moved to a different owner.
+      - key: CLIENT_ORIGIN
+        value: https://jfekete43.github.io

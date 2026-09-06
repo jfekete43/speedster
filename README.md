@@ -79,3 +79,44 @@ docs/
 5. **Results** — final standings are shown (place, finished vs. eliminated
    and where). Finishing 1st unlocks a cosmetic (the Crown hat) via
    localStorage, then the room resets to the lobby.
+
+## Deploying: play it from a real URL
+
+GitHub Pages only serves static files, so it can host the **client**, but
+not the Node/Socket.io **server** - that needs somewhere that runs a real
+process. This repo is wired up for a free split deployment:
+
+- **Client → GitHub Pages.** `.github/workflows/deploy-pages.yml` builds
+  `packages/client` and publishes it to Pages automatically on every push
+  to `main` that touches the client or shared package.
+- **Server → Render.com.** `render.yaml` at the repo root is a Render
+  [Blueprint](https://render.com/docs/blueprint-spec) describing the
+  server as a free web service.
+
+### One-time setup (only a repo owner with dashboard access can do these)
+
+1. **Enable Pages via Actions.** In the repo's Settings → Pages, set
+   "Source" to **GitHub Actions** (if it isn't already). The workflow
+   above then publishes to `https://<owner>.github.io/speedster/` on the
+   next push to `main`.
+2. **Deploy the server on Render.** Create a free Render account, then
+   "New +" → "Blueprint", and point it at this repo - it picks up
+   `render.yaml` automatically. First deploy takes a few minutes.
+3. **Double-check the URLs line up.** The workflow assumes the Render
+   service ends up at `https://speedster-server.onrender.com` (from the
+   service name `speedster-server` in `render.yaml`) and that Pages ends
+   up at `https://jfekete43.github.io` (from `CLIENT_ORIGIN` in
+   `render.yaml`). If either differs - e.g. the Render name was already
+   taken, or the repo lives under a different owner - update the other
+   config to match:
+   - Render URL differs → update `VITE_SERVER_URL` in
+     `.github/workflows/deploy-pages.yml` and re-run the workflow.
+   - Pages origin differs → update `CLIENT_ORIGIN` in `render.yaml` and
+     redeploy the Render service.
+
+### Heads up on the free tiers
+
+Render's free web service spins down after ~15 minutes idle. The first
+join after a period of inactivity can take 30-60 seconds while it wakes
+back up (the client will just look stuck connecting - give it a minute).
+There's nothing broken; it's the tradeoff for free hosting.
