@@ -1,17 +1,28 @@
 import Phaser from 'phaser';
-import { LANE_SPACING, PLAYER_HEIGHT, PLAYER_WIDTH, type PlayerSnapshot } from '@speedster/shared';
+import { LANE_SPACING, PLAYER_HEIGHT, type PlayerSnapshot } from '@speedster/shared';
 import { app } from '../App';
+import {
+  CHAR_TEXTURES,
+  ENV_TEXTURES,
+  HAT_TEXTURES,
+  OBSTACLE_TEXTURES,
+  POWERUP_TEXTURES,
+  ensureGameTextures,
+} from '../render/textures';
 
 const GROUND_SCREEN_Y = 520;
+const RUN_FRAME_MS = 150; // how fast the 2-frame run cycle alternates
 
-const DUCK_SCALE_Y = 0.55;
+const ELIMINATED_TINT = 0x718096;
 
 interface PlayerVisual {
   container: Phaser.GameObjects.Container;
-  body: Phaser.GameObjects.Rectangle;
-  hat: Phaser.GameObjects.Rectangle;
-  shieldAura: Phaser.GameObjects.Ellipse;
-  hasHat: boolean;
+  body: Phaser.GameObjects.Sprite;
+  hat: Phaser.GameObjects.Image;
+  statusAura: Phaser.GameObjects.Ellipse;
+  localMarker: Phaser.GameObjects.Ellipse | null;
+  hatKey: string | null;
+  baseColor: number;
   displayX: number;
   displayY: number;
   lane: number;
@@ -20,7 +31,7 @@ interface PlayerVisual {
 export class MainScene extends Phaser.Scene {
   private worldLayer!: Phaser.GameObjects.Container;
   private playerVisuals = new Map<string, PlayerVisual>();
-  private powerupSprites = new Map<string, Phaser.GameObjects.Arc>();
+  private powerupSprites = new Map<string, Phaser.GameObjects.Image>();
   private laneAssignment = new Map<string, number>();
   private nextLane = 0;
   private builtForRaceInstance = -1;
@@ -31,7 +42,21 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#101820');
+    ensureGameTextures(this);
+
+    this.cameras.main.setBackgroundColor('#4f9fd4');
+
+    // Parallax scenery - persists across races, sits behind worldLayer.
+    this.add
+      .tileSprite(0, 30, 20000, 260, ENV_TEXTURES.clouds)
+      .setOrigin(0, 0)
+      .setScrollFactor(0.15)
+      .setAlpha(0.85);
+    this.add
+      .tileSprite(0, GROUND_SCREEN_Y - 40, 20000, 160, ENV_TEXTURES.hills)
+      .setOrigin(0, 1)
+      .setScrollFactor(0.35);
+
     this.worldLayer = this.add.container(0, 0);
 
     this.input.keyboard?.on('keydown-SPACE', () => this.tryJump());
@@ -77,46 +102,48 @@ export class MainScene extends Phaser.Scene {
     this.cameras.main.scrollX = 0;
 
     const groundWidth = track.length + 800;
-    const ground = this.add.rectangle(groundWidth / 2 - 400, GROUND_SCREEN_Y + 30, groundWidth, 60, 0x2d3748);
+    const ground = this.add
+      .tileSprite(groundWidth / 2 - 400, GROUND_SCREEN_Y + 30, groundWidth, 60, ENV_TEXTURES.ground)
+      .setOrigin(0.5, 0.5);
     this.worldLayer.add(ground);
 
     for (const obstacle of track.obstacles) {
       if (obstacle.kind === 'thrown') {
-        // Floats at head height - communicates "duck under this", not "jump over this".
-        const rect = this.add.rectangle(obstacle.x, GROUND_SCREEN_Y - 105, obstacle.width, 46, 0x9f7aea, 0.85);
-        rect.setStrokeStyle(2, 0x000000, 0.3);
-        this.worldLayer.add(rect);
+        const orb = this.add.image(obstacle.x, GROUND_SCREEN_Y - 105, OBSTACLE_TEXTURES.thrown);
+        this.worldLayer.add(orb);
+        this.tweens.add({ targets: orb, angle: 360, duration: 1400, repeat: -1, ease: 'Linear' });
+        this.tweens.add({ targets: orb, y: orb.y - 8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         continue;
       }
-      const color = obstacle.kind === 'barrage' ? 0xf56565 : 0xecc94b;
-      const height = obstacle.clearance + 10;
-      const rect = this.add.rectangle(obstacle.x, GROUND_SCREEN_Y - height / 2, obstacle.width, height, color, 0.85);
-      rect.setStrokeStyle(2, 0x000000, 0.3);
-      this.worldLayer.add(rect);
+      const key = obstacle.kind === 'barrage' ? OBSTACLE_TEXTURES.barrage : OBSTACLE_TEXTURES.hurdle;
+      const img = this.add.image(obstacle.x, GROUND_SCREEN_Y, key).setOrigin(0.5, 1);
+      this.worldLayer.add(img);
     }
 
     for (const powerup of track.powerups) {
-      const color = powerup.kind === 'shield' ? 0x63b3ed : 0x68d391;
-      const orb = this.add.circle(powerup.x, GROUND_SCREEN_Y - 70, 14, color, 1);
-      orb.setStrokeStyle(3, 0xffffff, 0.6);
-      this.worldLayer.add(orb);
-      this.powerupSprites.set(powerup.id, orb);
+      const key = powerup.kind === 'shield' ? POWERUP_TEXTURES.shield : POWERUP_TEXTURES.speed;
+      const icon = this.add.image(powerup.x, GROUND_SCREEN_Y - 70, key);
+      this.worldLayer.add(icon);
+      this.tweens.add({ targets: icon, scale: 1.15, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      this.powerupSprites.set(powerup.id, icon);
     }
 
     track.checkpoints.forEach((cp, i) => {
-      const gate = this.add.rectangle(cp.x, GROUND_SCREEN_Y - 160, 10, 320, 0x4299e1, 0.5);
+      const gate = this.add.image(cp.x, GROUND_SCREEN_Y, ENV_TEXTURES.gate).setOrigin(0.5, 1);
       this.worldLayer.add(gate);
       const label = this.add
-        .text(cp.x, GROUND_SCREEN_Y - 330, `Checkpoint ${i + 1}`, { fontSize: '16px', color: '#90cdf4' })
-        .setOrigin(0.5);
+        .text(cp.x, GROUND_SCREEN_Y - 330, `Checkpoint ${i + 1}`, { fontSize: '16px', color: '#ffffff' })
+        .setOrigin(0.5)
+        .setShadow(0, 2, '#00000080', 3);
       this.worldLayer.add(label);
     });
 
-    const finish = this.add.rectangle(track.length, GROUND_SCREEN_Y - 160, 12, 320, 0xf6e05e, 0.9);
+    const finish = this.add.image(track.length, GROUND_SCREEN_Y, ENV_TEXTURES.finish).setOrigin(0.5, 1);
     this.worldLayer.add(finish);
     const finishLabel = this.add
-      .text(track.length, GROUND_SCREEN_Y - 330, 'FINISH', { fontSize: '18px', color: '#f6e05e', fontStyle: 'bold' })
-      .setOrigin(0.5);
+      .text(track.length, GROUND_SCREEN_Y - 330, 'FINISH', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold' })
+      .setOrigin(0.5)
+      .setShadow(0, 2, '#00000080', 3);
     this.worldLayer.add(finishLabel);
   }
 
@@ -126,46 +153,62 @@ export class MainScene extends Phaser.Scene {
 
     const meta = app.roster.get(id);
     const color = Phaser.Display.Color.HexStringToColor(meta?.cosmetics.color ?? '#a0aec0').color;
+    const isMe = id === app.myId;
 
-    const shieldAura = this.add.ellipse(0, 0, PLAYER_WIDTH + 22, PLAYER_HEIGHT + 22, 0x63b3ed, 0.25);
-    shieldAura.setStrokeStyle(2, 0x63b3ed, 0.9);
-    shieldAura.setVisible(false);
+    const statusAura = this.add.ellipse(0, -PLAYER_HEIGHT / 2, 48, 66, 0x63b3ed, 0.22);
+    statusAura.setStrokeStyle(2, 0x63b3ed, 0.9);
+    statusAura.setVisible(false);
 
-    const body = this.add.rectangle(0, 0, PLAYER_WIDTH, PLAYER_HEIGHT, color);
-    body.setStrokeStyle(id === app.myId ? 3 : 2, id === app.myId ? 0xffffff : 0x000000, id === app.myId ? 0.9 : 0.4);
+    const localMarker = isMe ? this.add.ellipse(0, -2, 30, 12, 0xffffff, 0.35) : null;
 
-    const hasHat = !!(meta?.cosmetics.hat && meta.cosmetics.hat !== 'none');
-    const hat = this.add.rectangle(0, -PLAYER_HEIGHT / 2 - 8, PLAYER_WIDTH * 0.7, 14, 0x1a202c);
-    hat.setVisible(hasHat);
+    const body = this.add.sprite(0, 0, CHAR_TEXTURES.standA).setOrigin(0.5, 1);
+    body.setTint(color);
+
+    const hatKey = meta?.cosmetics.hat && HAT_TEXTURES[meta.cosmetics.hat] ? HAT_TEXTURES[meta.cosmetics.hat] : null;
+    const hat = this.add.image(3, -70, hatKey ?? HAT_TEXTURES.top_hat).setOrigin(0.5, 1);
+    hat.setVisible(!!hatKey);
 
     const label = this.add
-      .text(0, -PLAYER_HEIGHT / 2 - 26, meta?.name ?? '???', { fontSize: '12px', color: '#e2e8f0' })
-      .setOrigin(0.5);
+      .text(0, -96, meta?.name ?? '???', { fontSize: '12px', color: '#ffffff' })
+      .setOrigin(0.5)
+      .setShadow(0, 1, '#00000090', 2);
 
     const lane = this.laneAssignment.get(id) ?? this.nextLane++;
     this.laneAssignment.set(id, lane);
 
-    const container = this.add.container(0, 0, [shieldAura, body, hat, label]);
+    const children = [statusAura, ...(localMarker ? [localMarker] : []), body, hat, label];
+    const container = this.add.container(0, 0, children);
     this.worldLayer.add(container);
 
-    visual = { container, body, hat, shieldAura, hasHat, displayX: 0, displayY: GROUND_SCREEN_Y, lane };
+    visual = {
+      container,
+      body,
+      hat,
+      statusAura,
+      localMarker,
+      hatKey,
+      baseColor: color,
+      displayX: 0,
+      displayY: GROUND_SCREEN_Y,
+      lane,
+    };
     this.playerVisuals.set(id, visual);
     return visual;
   }
 
-  private tintFor(p: PlayerSnapshot): number {
-    if (!p.alive) return 0x4a5568;
+  private auraColorFor(p: PlayerSnapshot): number | null {
+    if (p.shielded) return 0x63b3ed;
     if (p.boosted) return 0x68d391;
     if (p.stumbling) return 0xfc8181;
-    const meta = app.roster.get(p.id);
-    return Phaser.Display.Color.HexStringToColor(meta?.cosmetics.color ?? '#a0aec0').color;
+    return null;
   }
 
-  update(_time: number, delta: number) {
+  update(time: number, delta: number) {
     if (app.phase !== 'racing' || !app.snapshot || !app.track) return;
 
     const alpha = Math.min(1, delta / 90);
     const laneCenterOffset = (Math.max(this.nextLane, 1) - 1) * LANE_SPACING * 0.5;
+    const runFrame = Math.floor(time / RUN_FRAME_MS) % 2;
 
     let localX = 0;
     let haveLocal = false;
@@ -178,14 +221,26 @@ export class MainScene extends Phaser.Scene {
       visual.displayX += (targetX - visual.displayX) * alpha;
       visual.displayY += (targetY - visual.displayY) * alpha;
       visual.container.setPosition(visual.displayX, visual.displayY);
-      visual.container.setAlpha(p.alive ? 1 : 0.25);
-      visual.body.setFillStyle(this.tintFor(p));
+      visual.container.setAlpha(p.alive ? 1 : 0.3);
+      visual.body.setTint(p.alive ? visual.baseColor : ELIMINATED_TINT);
 
-      const ducking = p.ducking && p.grounded;
-      visual.body.setScale(1, ducking ? DUCK_SCALE_Y : 1);
-      visual.body.setY(ducking ? (PLAYER_HEIGHT * (1 - DUCK_SCALE_Y)) / 2 : 0);
-      visual.hat.setVisible(visual.hasHat && !ducking);
-      visual.shieldAura.setVisible(p.shielded);
+      const poseKey = !p.grounded
+        ? CHAR_TEXTURES.jump
+        : p.ducking
+          ? CHAR_TEXTURES.duck
+          : runFrame === 0
+            ? CHAR_TEXTURES.standA
+            : CHAR_TEXTURES.standB;
+      if (visual.body.texture.key !== poseKey) visual.body.setTexture(poseKey);
+
+      visual.hat.setVisible(!!visual.hatKey && p.grounded && !p.ducking);
+
+      const auraColor = this.auraColorFor(p);
+      visual.statusAura.setVisible(auraColor !== null);
+      if (auraColor !== null) {
+        visual.statusAura.setFillStyle(auraColor, 0.22);
+        visual.statusAura.setStrokeStyle(2, auraColor, 0.9);
+      }
 
       if (p.id === app.myId) {
         localX = visual.displayX;
@@ -193,8 +248,8 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    for (const [id, orb] of this.powerupSprites) {
-      orb.setVisible(!app.takenPowerupIds.has(id));
+    for (const [id, icon] of this.powerupSprites) {
+      icon.setVisible(!app.takenPowerupIds.has(id));
     }
 
     const viewWidth = this.scale.width;
