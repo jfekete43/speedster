@@ -1,351 +1,265 @@
 import Phaser from 'phaser';
+import { drawRunner, drawHat, RUNNER, type RunnerPose, type HatId } from './characters';
+import {
+  BARRAGE,
+  GATE,
+  HURDLE,
+  ORB,
+  PICKUP,
+  drawBarrage,
+  drawGate,
+  drawHurdle,
+  drawPickup,
+  drawThrownOrb,
+} from './props';
+import {
+  CLOUDS,
+  GROUND,
+  HILLS,
+  MOUNTAINS,
+  SKY,
+  TREES,
+  drawClouds,
+  drawGround,
+  drawHills,
+  drawMountains,
+  drawSky,
+  drawSun,
+  drawTrees,
+} from './environment';
 
 /**
- * All game art is generated procedurally here (vector shapes baked to
- * textures once at startup) rather than loaded from image files - this repo
- * has no art pipeline yet. Everything downstream (MainScene) only ever
- * references the texture KEYS below, never draws shapes itself, so swapping
- * this module out for real loaded spritesheets later is a localized change:
- * load real images/atlases in a scene's preload() under these same keys
- * (or point the CHAR_TEXTURES / HAT_TEXTURES / etc. tables at the new keys)
- * and the rest of the rendering code does not need to change.
+ * Bakes the Canvas2D art into Phaser textures.
+ *
+ * Everything is drawn at SUPERSAMPLE times its logical size and then displayed
+ * scaled back down, which is what keeps the curves and outlines crisp instead
+ * of aliased. Sprites therefore need `setScale(1 / SUPERSAMPLE)` (or the
+ * SPRITE_SCALE helper) to end up at their authored size.
  */
+export const SUPERSAMPLE = 3;
+export const SPRITE_SCALE = 1 / SUPERSAMPLE;
 
-export const CHAR_TEXTURES = {
-  standA: 'char-stand-a',
-  standB: 'char-stand-b',
-  jump: 'char-jump',
-  duck: 'char-duck',
+export const RUNNER_FRAMES = {
+  run: ['run0', 'run1', 'run2', 'run3', 'run4', 'run5', 'run6', 'run7'],
+  jump: 'jump',
+  fall: 'fall',
+  duck: 'duck',
+  stumble: 'stumble',
 } as const;
 
-export const HAT_TEXTURES: Record<string, string> = {
-  top_hat: 'hat-top_hat',
-  crown: 'hat-crown',
-};
-
-export const OBSTACLE_TEXTURES: Record<'hurdle' | 'barrage' | 'thrown', string> = {
-  hurdle: 'obs-hurdle',
-  barrage: 'obs-barrage',
-  thrown: 'obs-thrown',
-};
-
-export const POWERUP_TEXTURES: Record<'speed' | 'shield', string> = {
-  speed: 'pow-speed',
-  shield: 'pow-shield',
-};
-
-export const ENV_TEXTURES = {
-  ground: 'env-ground',
-  hills: 'env-hills',
-  clouds: 'env-clouds',
-  gate: 'env-gate',
-  finish: 'env-finish',
+export const TEX = {
+  sky: 'sky',
+  sun: 'sun',
+  clouds: 'clouds',
+  mountains: 'mountains',
+  hills: 'hills',
+  trees: 'trees',
+  ground: 'ground',
+  soil: 'soil',
+  hurdle: 'obstacle-hurdle',
+  barrage: 'obstacle-barrage',
+  orb: 'obstacle-orb',
+  pickupSpeed: 'pickup-speed',
+  pickupShield: 'pickup-shield',
+  gateCheckpoint: 'gate-checkpoint',
+  gateFinish: 'gate-finish',
+  hatTop: 'hat-top_hat',
+  hatCrown: 'hat-crown',
+  shadow: 'fx-shadow',
+  dust: 'fx-dust',
+  spark: 'fx-spark',
+  confetti: 'fx-confetti',
 } as const;
 
-// Character texture canvas size. Bigger than PLAYER_WIDTH/HEIGHT on purpose -
-// limbs/head are allowed to extend past the logical hitbox since only the
-// server's numeric width/height (from @speedster/shared) drives collision.
-const CHAR_W = 56;
-const CHAR_H = 76;
-const WHITE = 0xffffff; // body parts drawn white so Sprite.setTint() recolors them per player
-const INK = 0x1a202c; // facial features stay this fixed dark color regardless of tint
+export const SIZES = {
+  runner: RUNNER,
+  hurdle: HURDLE,
+  barrage: BARRAGE,
+  orb: ORB,
+  pickup: PICKUP,
+  gate: GATE,
+  sky: SKY,
+  clouds: CLOUDS,
+  mountains: MOUNTAINS,
+  hills: HILLS,
+  trees: TREES,
+  ground: GROUND,
+} as const;
 
-export function ensureGameTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists(CHAR_TEXTURES.standA)) return; // already generated for this scene
-
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-
-  drawCharacter(g, scene, 'run', 0);
-  drawCharacter(g, scene, 'run', 1);
-  drawCharacter(g, scene, 'jump', 0);
-  drawCharacter(g, scene, 'duck', 0);
-
-  drawTopHat(g, scene);
-  drawCrown(g, scene);
-
-  drawHurdle(g, scene);
-  drawBarrage(g, scene);
-  drawThrownOrb(g, scene);
-
-  drawSpeedIcon(g, scene);
-  drawShieldIcon(g, scene);
-
-  drawGroundTile(g, scene);
-  drawHillsTile(g, scene);
-  drawCloudsTile(g, scene);
-  drawGatePole(g, scene);
-  drawFinishPole(g, scene);
-
-  g.destroy();
+/** Bakes at 1:1 - for soft FX sprites that are scaled at runtime anyway. */
+function bakeRaw(
+  scene: Phaser.Scene,
+  key: string,
+  w: number,
+  h: number,
+  draw: (ctx: CanvasRenderingContext2D) => void
+) {
+  if (scene.textures.exists(key)) return;
+  const tex = scene.textures.createCanvas(key, w, h);
+  if (!tex) return;
+  draw(tex.getContext());
+  tex.refresh();
 }
 
-function drawCharacter(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene, pose: 'run' | 'jump' | 'duck', frame: number) {
-  g.clear();
-  const cx = CHAR_W / 2;
+function bake(
+  scene: Phaser.Scene,
+  key: string,
+  logicalW: number,
+  logicalH: number,
+  draw: (ctx: CanvasRenderingContext2D) => void
+): Phaser.Textures.CanvasTexture | null {
+  if (scene.textures.exists(key)) return scene.textures.get(key) as Phaser.Textures.CanvasTexture;
+  const tex = scene.textures.createCanvas(key, logicalW * SUPERSAMPLE, logicalH * SUPERSAMPLE);
+  if (!tex) return null;
+  const ctx = tex.getContext();
+  ctx.save();
+  ctx.scale(SUPERSAMPLE, SUPERSAMPLE);
+  draw(ctx);
+  ctx.restore();
+  tex.refresh();
+  return tex;
+}
 
-  if (pose === 'duck') {
-    // Low, wide crouched silhouette - deliberately a different shape, not a
-    // squashed copy of the stand pose, so it reads as a genuine dodge pose.
-    const torsoW = 34;
-    const torsoH = 26;
-    const torsoY = CHAR_H - torsoH - 6;
-    g.fillStyle(WHITE, 1);
-    g.fillRoundedRect(cx - torsoW / 2, torsoY, torsoW, torsoH, 12);
-    // legs, bent, tucked under the low torso
-    g.fillRoundedRect(cx - 16, CHAR_H - 12, 12, 12, 4);
-    g.fillRoundedRect(cx + 4, CHAR_H - 12, 12, 12, 4);
-    // head, lowered
-    g.fillCircle(cx + 4, torsoY - 8, 13);
-    g.fillStyle(0xffffff, 1);
-    g.fillCircle(cx + 12, torsoY - 10, 3.2);
-    g.fillStyle(INK, 1);
-    g.fillCircle(cx + 13, torsoY - 10, 1.6);
-    // arms tucked forward, low
-    g.fillStyle(WHITE, 1);
-    g.fillRoundedRect(cx + 10, torsoY + 6, 16, 8, 4);
-    g.generateTexture(CHAR_TEXTURES.duck, CHAR_W, CHAR_H);
-    return;
+function bakeSoil(ctx: CanvasRenderingContext2D) {
+  const w = 256;
+  const h = 120;
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#6b4a35');
+  g.addColorStop(1, '#38251a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(0, 0, w, 5);
+  let s = 1337;
+  const rand = () => ((s = (s * 1664525 + 1013904223) % 4294967296), s / 4294967296);
+  for (let i = 0; i < 40; i++) {
+    const x = rand() * w;
+    const y = 10 + rand() * (h - 20);
+    const r = 1.5 + rand() * 3;
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
-
-  const legSpread = pose === 'jump' ? 0 : frame === 0 ? 6 : -6;
-  const torsoW = 26;
-  const torsoH = 34;
-  const torsoY = pose === 'jump' ? 20 : 16;
-  const headCy = torsoY - 6;
-
-  g.fillStyle(WHITE, 1);
-
-  if (pose === 'jump') {
-    // Torso first, then bent knees drawn ON TOP of it and spread wide enough
-    // to clear its silhouette - a tucked-up jump pose reads as limbs in
-    // front of the body, not legs hidden behind a torso that's wider than
-    // the gap between them.
-    g.fillRoundedRect(cx - torsoW / 2, torsoY, torsoW, torsoH, 12);
-    g.fillRoundedRect(cx - 24, torsoY + torsoH - 10, 14, 20, 6);
-    g.fillRoundedRect(cx + 10, torsoY + torsoH - 10, 14, 20, 6);
-    g.fillRoundedRect(cx - 24, torsoY - 6, 10, 22, 5); // arms raised
-    g.fillRoundedRect(cx + 14, torsoY - 6, 10, 22, 5);
-  } else {
-    // Running stride: back leg first, torso over it, front leg + arms on top.
-    g.fillRoundedRect(cx - 10 + legSpread, torsoY + torsoH - 4, 11, CHAR_H - (torsoY + torsoH - 4) - 2, 5);
-    g.fillRoundedRect(cx - 1 - legSpread, torsoY + torsoH - 4, 11, CHAR_H - (torsoY + torsoH - 4) - 2, 5);
-    g.fillRoundedRect(cx - torsoW / 2, torsoY, torsoW, torsoH, 12);
-    const armSwing = frame === 0 ? -legSpread : legSpread;
-    g.fillRoundedRect(cx - 20 + armSwing * 0.6, torsoY + 4, 9, 20, 4);
-    g.fillRoundedRect(cx + 11 - armSwing * 0.6, torsoY + 4, 9, 20, 4);
-  }
-
-  // head
-  g.fillCircle(cx + 3, headCy, 14);
-  g.fillStyle(0xffffff, 1);
-  g.fillCircle(cx + 10, headCy - 2, 3.4);
-  g.fillStyle(INK, 1);
-  g.fillCircle(cx + 11, headCy - 2, 1.8);
-
-  const key = pose === 'jump' ? CHAR_TEXTURES.jump : frame === 0 ? CHAR_TEXTURES.standA : CHAR_TEXTURES.standB;
-  g.generateTexture(key, CHAR_W, CHAR_H);
 }
 
-function drawTopHat(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  g.fillStyle(0x1a202c, 1);
-  g.fillRoundedRect(2, 14, 36, 6, 2); // brim
-  g.fillRoundedRect(9, 0, 22, 16, 2); // crown
-  g.fillStyle(0x9b2c2c, 1);
-  g.fillRect(9, 11, 22, 4); // band
-  g.generateTexture(HAT_TEXTURES.top_hat, 40, 22);
+function bakeShadow(ctx: CanvasRenderingContext2D) {
+  const r = 32;
+  const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+  g.addColorStop(0, 'rgba(12,9,28,0.55)');
+  g.addColorStop(0.6, 'rgba(12,9,28,0.22)');
+  g.addColorStop(1, 'rgba(12,9,28,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(r, r, r, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function drawCrown(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  g.fillStyle(0xf6e05e, 1);
-  g.fillPoints(
-    [
-      { x: 2, y: 20 },
-      { x: 2, y: 10 },
-      { x: 10, y: 16 },
-      { x: 20, y: 2 },
-      { x: 30, y: 16 },
-      { x: 38, y: 10 },
-      { x: 38, y: 20 },
-    ],
-    true,
-    true
-  );
-  g.fillStyle(0xc53030, 1);
-  g.fillCircle(20, 8, 2.4);
-  g.generateTexture(HAT_TEXTURES.crown, 40, 22);
+function bakeDust(ctx: CanvasRenderingContext2D) {
+  const r = 16;
+  const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+  g.addColorStop(0, 'rgba(255,246,232,0.9)');
+  g.addColorStop(0.5, 'rgba(226,205,182,0.45)');
+  g.addColorStop(1, 'rgba(214,192,168,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, r * 2, r * 2);
 }
 
-function drawHurdle(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 40;
-  const h = 100; // clearance (90) + 10, matching track.ts's hurdle sizing
-  g.fillStyle(0x4a5568, 1);
-  g.fillRoundedRect(2, 0, 8, h, 2); // left post
-  g.fillRoundedRect(w - 10, 0, 8, h, 2); // right post
-  g.fillStyle(0xecc94b, 1);
-  g.fillRoundedRect(0, 6, w, 10, 3); // top bar
-  g.fillStyle(0xecc94b, 0.9);
-  g.fillRoundedRect(0, h - 14, w, 8, 3); // lower slat
-  g.generateTexture(OBSTACLE_TEXTURES.hurdle, w, h);
+function bakeSpark(ctx: CanvasRenderingContext2D) {
+  const r = 10;
+  const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,236,160,0.9)');
+  g.addColorStop(1, 'rgba(255,196,80,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, r * 2, r * 2);
 }
 
-function drawBarrage(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 70;
-  const h = 140; // clearance (130) + 10
-  g.fillStyle(0x742a2a, 1);
-  g.fillRoundedRect(0, 20, w, h - 20, 4); // wall base
-  g.fillStyle(0xf56565, 1);
-  const spikeCount = 5;
-  const spikeW = w / spikeCount;
-  for (let i = 0; i < spikeCount; i++) {
-    const sx = i * spikeW;
-    g.fillTriangle(sx, 20, sx + spikeW / 2, 0, sx + spikeW, 20);
-  }
-  g.generateTexture(OBSTACLE_TEXTURES.barrage, w, h);
+function bakeConfetti(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 8, 12);
 }
 
-function drawThrownOrb(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const size = 46;
-  const cx = size / 2;
-  g.fillStyle(0x553c9a, 1);
-  g.fillCircle(cx, cx, 15);
-  g.fillStyle(0x9f7aea, 1);
-  // spikes around the orb - reads as "thrown weapon", also motion cue for the spin tween
-  for (let i = 0; i < 6; i++) {
-    const angle = (i / 6) * Math.PI * 2;
-    const x1 = cx + Math.cos(angle) * 14;
-    const y1 = cx + Math.sin(angle) * 14;
-    const x2 = cx + Math.cos(angle) * 23;
-    const y2 = cx + Math.sin(angle) * 23;
-    const perp = angle + Math.PI / 2;
-    const bx = cx + Math.cos(angle) * 10 + Math.cos(perp) * 4;
-    const by = cx + Math.sin(angle) * 10 + Math.sin(perp) * 4;
-    g.fillTriangle(bx, by, x1, y1, x2, y2);
-  }
-  g.generateTexture(OBSTACLE_TEXTURES.thrown, size, size);
+/** Static world/prop/FX textures. Idempotent. */
+export function ensureStaticTextures(scene: Phaser.Scene) {
+  bake(scene, TEX.sky, SKY.width, SKY.height, drawSky);
+  bake(scene, TEX.sun, 340, 340, (c) => drawSun(c, 340));
+  bake(scene, TEX.clouds, CLOUDS.width, CLOUDS.height, drawClouds);
+  bake(scene, TEX.mountains, MOUNTAINS.width, MOUNTAINS.height, drawMountains);
+  bake(scene, TEX.hills, HILLS.width, HILLS.height, drawHills);
+  bake(scene, TEX.trees, TREES.width, TREES.height, drawTrees);
+  bake(scene, TEX.ground, GROUND.width, GROUND.height, drawGround);
+  bake(scene, TEX.soil, 256, 120, bakeSoil);
+
+  bake(scene, TEX.hurdle, HURDLE.width, HURDLE.height, drawHurdle);
+  bake(scene, TEX.barrage, BARRAGE.width, BARRAGE.height, drawBarrage);
+  bake(scene, TEX.orb, ORB.size, ORB.size, drawThrownOrb);
+  bake(scene, TEX.pickupSpeed, PICKUP.size, PICKUP.size, (c) => drawPickup(c, 'speed'));
+  bake(scene, TEX.pickupShield, PICKUP.size, PICKUP.size, (c) => drawPickup(c, 'shield'));
+  bake(scene, TEX.gateCheckpoint, GATE.width, GATE.height, (c) => drawGate(c, 'checkpoint'));
+  bake(scene, TEX.gateFinish, GATE.width, GATE.height, (c) => drawGate(c, 'finish'));
+
+  bake(scene, TEX.hatTop, 46, 30, (c) => {
+    c.translate(23, 26);
+    drawHat(c, 'top_hat');
+  });
+  bake(scene, TEX.hatCrown, 46, 30, (c) => {
+    c.translate(23, 26);
+    drawHat(c, 'crown');
+  });
+
+  bakeRaw(scene, TEX.shadow, 64, 64, bakeShadow);
+  bakeRaw(scene, TEX.dust, 32, 32, bakeDust);
+  bakeRaw(scene, TEX.spark, 20, 20, bakeSpark);
+  bakeRaw(scene, TEX.confetti, 8, 12, bakeConfetti);
 }
 
-function drawSpeedIcon(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  g.fillStyle(0x68d391, 1);
-  g.fillCircle(16, 16, 15);
-  g.fillStyle(0xf0fff4, 1);
-  g.fillPoints(
-    [
-      { x: 18, y: 4 },
-      { x: 9, y: 18 },
-      { x: 15, y: 18 },
-      { x: 13, y: 28 },
-      { x: 23, y: 13 },
-      { x: 17, y: 13 },
-    ],
-    true,
-    true
-  );
-  g.generateTexture(POWERUP_TEXTURES.speed, 32, 32);
+export function hatTextureFor(hat: string | undefined): string | null {
+  if (hat === 'top_hat') return TEX.hatTop;
+  if (hat === 'crown') return TEX.hatCrown;
+  return null;
 }
 
-function drawShieldIcon(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  g.fillStyle(0x63b3ed, 1);
-  g.fillCircle(16, 16, 15);
-  g.fillStyle(0xebf8ff, 1);
-  g.fillPoints(
-    [
-      { x: 16, y: 5 },
-      { x: 25, y: 9 },
-      { x: 25, y: 16 },
-      { x: 16, y: 27 },
-      { x: 7, y: 16 },
-      { x: 7, y: 9 },
-    ],
-    true,
-    true
-  );
-  g.fillStyle(0x63b3ed, 1);
-  g.fillPoints(
-    [
-      { x: 16, y: 10 },
-      { x: 21, y: 13 },
-      { x: 21, y: 17 },
-      { x: 16, y: 22 },
-      { x: 11, y: 17 },
-      { x: 11, y: 13 },
-    ],
-    true,
-    true
-  );
-  g.generateTexture(POWERUP_TEXTURES.shield, 32, 32);
+const POSE_ORDER: { name: string; pose: RunnerPose; phase: number }[] = [
+  ...Array.from({ length: 8 }, (_, i) => ({ name: `run${i}`, pose: 'run' as RunnerPose, phase: i / 8 })),
+  { name: 'jump', pose: 'jump', phase: 0 },
+  { name: 'fall', pose: 'fall', phase: 0 },
+  { name: 'duck', pose: 'duck', phase: 0 },
+  { name: 'stumble', pose: 'stumble', phase: 0 },
+];
+
+const runnerKeyFor = (color: string) => `runner:${color}`;
+
+/**
+ * Bakes one horizontal strip of every pose for a given player color. Colors are
+ * baked on demand (there are only ever a handful in a race) so each character
+ * gets real shading in its own hue rather than a flat tint over a white sprite.
+ */
+export function ensureRunnerTexture(scene: Phaser.Scene, color: string): string {
+  const key = runnerKeyFor(color);
+  if (scene.textures.exists(key)) return key;
+
+  const fw = RUNNER.width;
+  const fh = RUNNER.height;
+  const tex = scene.textures.createCanvas(key, fw * POSE_ORDER.length * SUPERSAMPLE, fh * SUPERSAMPLE);
+  if (!tex) return key;
+
+  const ctx = tex.getContext();
+  ctx.save();
+  ctx.scale(SUPERSAMPLE, SUPERSAMPLE);
+  POSE_ORDER.forEach((entry, i) => {
+    ctx.save();
+    ctx.translate(i * fw + RUNNER.footX, RUNNER.footY);
+    drawRunner(ctx, { color, pose: entry.pose, phase: entry.phase });
+    ctx.restore();
+  });
+  ctx.restore();
+
+  POSE_ORDER.forEach((entry, i) => {
+    tex.add(entry.name, 0, i * fw * SUPERSAMPLE, 0, fw * SUPERSAMPLE, fh * SUPERSAMPLE);
+  });
+  tex.refresh();
+  return key;
 }
 
-function drawGroundTile(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 64;
-  const h = 60;
-  g.fillStyle(0x2d3748, 1);
-  g.fillRect(0, 0, w, h);
-  g.fillStyle(0x1a202c, 1);
-  g.fillRect(0, 0, w, 6); // top edge shadow line
-  g.fillStyle(0x4a5568, 1);
-  g.fillRoundedRect(14, 24, 28, 6, 3); // lane dash marking
-  g.generateTexture(ENV_TEXTURES.ground, w, h);
-}
-
-function drawHillsTile(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 480;
-  const h = 160;
-  g.fillStyle(0x1c3a3a, 1);
-  g.fillEllipse(80, h + 40, 260, 160);
-  g.fillEllipse(280, h + 60, 320, 180);
-  g.fillEllipse(460, h + 30, 240, 150);
-  g.generateTexture(ENV_TEXTURES.hills, w, h);
-}
-
-function drawCloudsTile(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 600;
-  const h = 260;
-  g.fillStyle(0xffffff, 0.5);
-  const puff = (cx: number, cy: number, s: number) => {
-    g.fillEllipse(cx, cy, 70 * s, 34 * s);
-    g.fillEllipse(cx - 30 * s, cy + 6 * s, 46 * s, 26 * s);
-    g.fillEllipse(cx + 34 * s, cy + 8 * s, 50 * s, 24 * s);
-  };
-  puff(110, 70, 1);
-  puff(430, 130, 0.7);
-  g.generateTexture(ENV_TEXTURES.clouds, w, h);
-}
-
-function drawGatePole(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 26;
-  const h = 320;
-  g.fillStyle(0x2b6cb0, 1);
-  g.fillRoundedRect(w / 2 - 5, 0, 10, h, 4);
-  g.fillStyle(0x4299e1, 1);
-  g.fillTriangle(w / 2 + 5, 10, w / 2 + 5, 44, w / 2 + 34, 27);
-  g.generateTexture(ENV_TEXTURES.gate, w, h);
-}
-
-function drawFinishPole(g: Phaser.GameObjects.Graphics, scene: Phaser.Scene) {
-  g.clear();
-  const w = 26;
-  const h = 320;
-  g.fillStyle(0x2d3748, 1);
-  g.fillRoundedRect(w / 2 - 5, 0, 10, h, 4);
-  const squares = 5;
-  const sq = 44 / squares;
-  for (let row = 0; row < squares; row++) {
-    for (let col = 0; col < 2; col++) {
-      const even = (row + col) % 2 === 0;
-      g.fillStyle(even ? 0x1a202c : 0xf7fafc, 1);
-      g.fillRect(w / 2 + 5 + col * sq, 4 + row * sq, sq, sq);
-    }
-  }
-  g.generateTexture(ENV_TEXTURES.finish, w, h);
-}
+export type { RunnerPose, HatId };

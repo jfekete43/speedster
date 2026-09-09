@@ -149,13 +149,22 @@ export class Room {
       player.socket = null;
     }
 
-    const anyHumansLeft = [...this.players.values()].some((p) => !p.isBot);
+    // Only *connected* humans keep the room alive. Counting frozen-out
+    // disconnects here left rooms running with nobody in them.
+    const anyHumansLeft = [...this.players.values()].some((p) => !p.isBot && p.connected);
     if (!anyHumansLeft) {
       this.fullyClearRoom();
       return;
     }
 
+    if (this.hostId === id) this.reassignHost();
     if (this.phase === 'lobby') this.broadcastLobbyState();
+  }
+
+  /** Hands host to any connected human, or clears it if there are none. */
+  private reassignHost() {
+    const next = [...this.players.values()].find((p) => !p.isBot && p.connected);
+    this.hostId = next ? next.id : null;
   }
 
   private fullyClearRoom() {
@@ -422,6 +431,19 @@ export class Room {
     }
     if (this.players.size === 0) return;
     this.phase = 'lobby';
+
+    // Drop anyone who disconnected during the race. They were only kept around
+    // so the finished race's standings stayed correct; reviving them into the
+    // lobby leaves a ghost that never readies up, which wedges the room.
+    for (const [id, player] of [...this.players]) {
+      if (!player.isBot && !player.connected) this.players.delete(id);
+    }
+    if (!this.hostId || !this.players.has(this.hostId)) this.reassignHost();
+    if (!this.hostId) {
+      this.fullyClearRoom();
+      return;
+    }
+
     for (const player of this.players.values()) {
       Object.assign(player, createInitialPhysicsState(0));
       player.ready = player.isBot;

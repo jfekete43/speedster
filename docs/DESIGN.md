@@ -56,10 +56,17 @@ Roughly in the order it'd make sense to tackle:
 5. **More tracks & track variety.** One hand-authored track today. Add a
    track rotation/voting, and eventually procedural or community-built
    tracks.
-6. **Art & audio pass.** Characters and obstacles are currently flat
-   colored rectangles (functional, not pretty). Needs real sprites,
-   animations (run/jump/stumble/celebrate), parallax backgrounds, and
-   sound effects/music.
+6. **Audio.** Still entirely silent - needs footfalls, jump/land, obstacle
+   impact, pickup chimes, checkpoint elimination stings, and music.
+
+   The art pass is done for now: procedural Canvas2D art replaced the flat
+   rectangles with shaded, outlined characters (8-frame run cycle plus
+   jump/fall/duck/stumble poses), detailed obstacles and pickups, a layered
+   parallax backdrop, and juice - dust on footfalls and landings, sparks on
+   impacts, squash-and-stretch, contact shadows, camera shake, and confetti
+   at the finish. Real illustrated sprite assets could still replace the
+   generated ones: everything downstream refers to texture keys, so swapping
+   in loaded spritesheets is localized to `render/textures.ts`.
 7. **Mobile-friendly controls & responsive HUD.** Tap-to-jump already works;
    needs real on-screen controls and layout testing on small screens.
 8. **Anti-cheat hardening.** Server is authoritative for physics, but input
