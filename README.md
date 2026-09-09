@@ -6,7 +6,7 @@ cut down at checkpoints until only a final few sprint for the finish line.
 Characters are cosmetically customizable, with cosmetics unlocked by playing.
 
 This repo currently implements the **core playable loop** end-to-end:
-lobby → customization → countdown → race (obstacles, one power-up type, two
+lobby → customization → countdown → race (obstacles, two power-up types, two
 elimination checkpoints funneling the field down to a final 3) → results →
 back to lobby. See [`docs/DESIGN.md`](docs/DESIGN.md) for the full vision and
 what's intentionally deferred for later passes.
@@ -23,8 +23,37 @@ what's intentionally deferred for later passes.
   snapshots to every client in the room.
 - **Client** (`packages/client`): Vite + Phaser 3. A single scene renders
   the race from server snapshots (lightly smoothed for readability at 20Hz);
-  the lobby, countdown, HUD, and results screens are plain DOM overlays on
-  top of the canvas.
+  the lobby, countdown, HUD, and results screens are DOM overlays on top of
+  the canvas.
+- **Art** (`packages/client/src/render`): all game art is generated in code
+  with the Canvas2D API and baked into Phaser textures at startup - there are
+  no image assets in the repo. See "Art pipeline" below.
+
+## Art pipeline
+
+Everything you see is drawn procedurally:
+
+- `characters.ts` - a parametric, skeletal runner. Poses come from joint
+  angles, so the 8-frame run cycle is a function of phase rather than
+  hand-drawn frames, and jump/fall/duck/stumble are extra pose functions.
+  Each player colour is baked into its own sprite sheet so characters get
+  real shading in their own hue instead of a flat tint over a white sprite.
+- `props.ts` / `environment.ts` - obstacles, pickups, gates, and the
+  parallax scenery. Background layers are built from sine terms with whole
+  numbers of cycles across the tile width, which makes them tile seamlessly.
+- `textures.ts` - bakes those drawings into Phaser textures at 3x and
+  displays them scaled back down, which is what keeps curves and outlines
+  crisp. Anything using these textures needs `SPRITE_SCALE`.
+
+The draw functions deliberately take only a `CanvasRenderingContext2D` and
+know nothing about Phaser, so the art can be iterated on in isolation:
+
+```bash
+npm run dev -w @speedster/client   # then open /art-preview.html
+```
+
+That page renders a contact sheet of every pose, colour, prop, and a full
+scene mockup. It is a dev-only tool and is not part of the production build.
 
 ## Running it locally
 
@@ -70,7 +99,8 @@ docs/
    doesn't clear those, only ducking does. Miss either and you stumble
    (temporary speed penalty), unless you're holding a shield. Two
    power-ups are up for grabs along the way (speed boost, shield), first
-   come first served.
+   come first served. A progress bar along the bottom of the HUD shows
+   every racer's position, the checkpoints, and the finish line.
 3. **Checkpoints** — when the leader reaches a checkpoint gate, stragglers
    get a grace window to catch up, then the bottom half of the field is cut.
    The last checkpoint cuts down to the final 3 survivors.

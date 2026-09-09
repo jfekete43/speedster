@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Speedster</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -11,29 +17,37 @@
       <div id="game-root"></div>
 
       <div id="lobby-overlay" class="overlay">
-        <div class="panel">
-          <h1>🏁 Speedster</h1>
-          <p class="tagline">Multiplayer side-scrolling elimination speedrun</p>
+        <div class="panel lobby">
+          <header class="lobby-head">
+            <h1>SPEEDSTER</h1>
+            <p class="tagline">Elimination sprint &mdash; last three standing race for the line</p>
+          </header>
 
-          <label class="field">
-            Name
-            <input id="name-input" maxlength="16" placeholder="Runner" />
-          </label>
+          <div class="lobby-body">
+            <section class="customizer">
+              <canvas id="runner-preview" width="150" height="190"></canvas>
+              <label class="field">
+                <span>Name</span>
+                <input id="name-input" maxlength="16" placeholder="Runner" />
+              </label>
+            </section>
 
-          <div class="field">
-            <span>Color</span>
-            <div id="color-swatches" class="swatches"></div>
-          </div>
-
-          <div class="field">
-            <span>Hat</span>
-            <div id="hat-options" class="swatches"></div>
+            <section class="options">
+              <div class="field">
+                <span>Colour</span>
+                <div id="color-swatches" class="swatches"></div>
+              </div>
+              <div class="field">
+                <span>Hat</span>
+                <div id="hat-options" class="swatches hats"></div>
+              </div>
+            </section>
           </div>
 
           <div class="row">
-            <button id="ready-btn">Ready Up</button>
-            <button id="add-bots-btn">+ Add Bot</button>
-            <button id="start-btn" hidden>Start Race</button>
+            <button id="ready-btn" class="primary">Ready Up</button>
+            <button id="add-bots-btn" class="ghost">+ Add Bot</button>
+            <button id="start-btn" class="go" hidden>Start Race</button>
           </div>
 
           <ul id="player-list" class="player-list"></ul>
@@ -41,21 +55,29 @@
         </div>
       </div>
 
-      <div id="countdown-overlay" class="overlay" hidden>
+      <div id="countdown-overlay" class="overlay bare" hidden>
         <div class="countdown-number">3</div>
       </div>
 
       <div id="hud" class="hud" hidden>
-        <ol id="leaderboard" class="leaderboard"></ol>
-        <div id="toasts" class="toasts"></div>
-        <p class="controls-hint">Space / Tap to jump · Down / S to duck</p>
+        <div class="hud-top">
+          <ol id="leaderboard" class="leaderboard"></ol>
+          <div id="toasts" class="toasts"></div>
+        </div>
+        <div class="progress-wrap">
+          <div id="progress-track" class="progress-track">
+            <div id="progress-marks" class="progress-marks"></div>
+            <div id="progress-pips" class="progress-pips"></div>
+          </div>
+          <p class="controls-hint">SPACE / tap &mdash; jump &nbsp;·&nbsp; DOWN / S &mdash; duck</p>
+        </div>
       </div>
 
       <div id="results-overlay" class="overlay" hidden>
-        <div class="panel">
-          <h1>Results</h1>
+        <div class="panel results">
+          <h1>Race Results</h1>
           <ol id="standings-list" class="standings"></ol>
-          <p class="hint">Returning to lobby shortly…</p>
+          <p class="hint">Next race starting shortly&hellip;</p>
         </div>
       </div>
     </div>

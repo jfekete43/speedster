@@ -21,6 +21,7 @@ export interface Toast {
 export interface RosterEntry {
   name: string;
   cosmetics: Cosmetics;
+  isBot: boolean;
 }
 
 type Listener = () => void;
@@ -71,7 +72,7 @@ class App {
       this.lobby = view;
       this.phase = view.phase;
       for (const p of view.players) {
-        this.roster.set(p.id, { name: p.name, cosmetics: p.cosmetics });
+        this.roster.set(p.id, { name: p.name, cosmetics: p.cosmetics, isBot: p.isBot });
       }
       this.notify();
     });
